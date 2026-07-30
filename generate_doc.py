@@ -132,4 +132,18 @@ def create_submission_doc(student_name="[Họ và Tên Sinh Viên]", student_id=
     print(f"[OK] Da tao thanh cong file Word nop bai: {os.path.abspath(output_filename)}")
 
 if __name__ == "__main__":
-    create_submission_doc()
+    import argparse
+    parser = argparse.ArgumentParser(description="Tao file Word nop bai tap Django AI Chat")
+    parser.add_argument("--name", default="[Họ và Tên Sinh Viên]", help="Họ và tên sinh viên")
+    parser.add_argument("--id", default="[Mã Số Sinh Viên]", help="Mã số sinh viên (MSSV)")
+    parser.add_argument("--class", dest="class_name", default="[Lớp Học Phần]", help="Tên lớp học phần")
+    parser.add_argument("--url", default="https://github.com/username/Django-AI-Chat", help="Đường dẫn repository GitHub")
+
+    args = parser.parse_args()
+    create_submission_doc(
+        student_name=args.name,
+        student_id=args.id,
+        class_name=args.class_name,
+        github_url=args.url
+    )
+
