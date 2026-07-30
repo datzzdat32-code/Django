@@ -1,0 +1,208 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat Assistant - Django & Google Gemini</title>
+    <meta name="description" content="Ứng dụng Web Chat AI sử dụng Django và Google Gemini API với giao diện hiện đại và mượt mà.">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Marked.js for Markdown parsing & Highlight.js for Code Highlighting -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/tokyo-night-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="brand">
+                    <div class="brand-icon">
+                        <i class="fa-solid fa-sparkles"></i>
+                    </div>
+                    <div class="brand-text">
+                        <h2>Gemini <span>AI</span></h2>
+                        <span class="badge">Django App</span>
+                    </div>
+                </div>
+                <button class="btn-icon mobile-only" id="closeSidebarBtn">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <button class="btn-new-chat" id="newChatBtn">
+                <i class="fa-solid fa-plus"></i>
+                <span>Cuộc trò chuyện mới</span>
+            </button>
+
+            <div class="quick-prompts-section">
+                <h3 class="sidebar-title"><i class="fa-solid fa-lightbulb"></i> Gợi ý câu hỏi</h3>
+                <div class="prompt-chips">
+                    <button class="prompt-chip" data-prompt="Viết code Python đọc file JSON và lưu vào Database SQLite trong Django.">
+                        <i class="fa-brands fa-python"></i> Code Django & SQLite
+                    </button>
+                    <button class="prompt-chip" data-prompt="Giải thích khái niệm Machine Learning và Deep Learning một cách dễ hiểu nhất.">
+                        <i class="fa-solid fa-brain"></i> Machine Learning là gì?
+                    </button>
+                    <button class="prompt-chip" data-prompt="Tạo kế hoạch học tập lập trình Web với Django & React trong 3 tháng.">
+                        <i class="fa-solid fa-calendar-days"></i> Lộ trình học Django 3 tháng
+                    </button>
+                    <button class="prompt-chip" data-prompt="Viết đoạn văn mô tả bản thân bằng tiếng Anh khi ứng tuyển vị trí Web Developer.">
+                        <i class="fa-solid fa-file-signature"></i> Self-introduction tiếng Anh
+                    </button>
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <button class="btn-settings" id="openSettingsBtn">
+                    <i class="fa-solid fa-gear"></i>
+                    <span>Cấu hình API Key</span>
+                    <span class="key-status-dot" id="keyStatusDot"></span>
+                </button>
+                <div class="user-info">
+                    <i class="fa-solid fa-circle-user"></i>
+                    <span>Sinh viên / Học viên</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main class="chat-main">
+            <!-- Header -->
+            <header class="chat-header">
+                <div class="header-left">
+                    <button class="btn-icon mobile-only" id="openSidebarBtn">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+                    <div class="model-selector-wrapper">
+                        <i class="fa-solid fa-microchip"></i>
+                        <select id="modelSelect" class="model-select">
+                            <option value="gemini-1.5-flash" selected>Gemini 1.5 Flash (Miễn phí & Khuyên dùng)</option>
+                            <option value="gemini-1.5-flash-8b">Gemini 1.5 Flash 8B (Siêu nhẹ)</option>
+                            <option value="gemini-2.0-flash">Gemini 2.0 Flash (Phiên bản mới)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="header-right">
+                    <div class="status-indicator">
+                        <span class="pulse-dot"></span>
+                        <span class="status-text">Đã kết nối AI</span>
+                    </div>
+                    <button class="btn-secondary" id="clearChatBtn" title="Xóa lịch sử trò chuyện">
+                        <i class="fa-solid fa-trash-can"></i>
+                        <span class="desktop-only">Clear</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Chat Scroll Area -->
+            <div class="chat-feed" id="chatFeed">
+                <!-- Welcome Screen -->
+                <div class="welcome-container" id="welcomeContainer">
+                    <div class="welcome-icon">
+                        <i class="fa-solid fa-robot"></i>
+                    </div>
+                    <h1>Xin chào! Tôi là Gemini AI</h1>
+                    <p>Tôi có thể giúp bạn giải đáp thắc mắc, viết code, tối ưu hóa ý tưởng và nhiều hơn nữa. Hãy nhập câu hỏi bên dưới để bắt đầu!</p>
+                    
+                    <div class="feature-cards">
+                        <div class="feature-card">
+                            <div class="card-icon"><i class="fa-solid fa-code"></i></div>
+                            <h3>Hỗ trợ Lập trình</h3>
+                            <p>Viết code, debug, giải thích cú pháp Django, Python, JS, HTML/CSS.</p>
+                        </div>
+                        <div class="feature-card">
+                            <div class="card-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+                            <h3>Sáng tạo & Phân tích</h3>
+                            <p>Tóm tắt văn bản, soạn thảo nội dung, viết báo cáo bài tập.</p>
+                        </div>
+                        <div class="feature-card">
+                            <div class="card-icon"><i class="fa-solid fa-bolt"></i></div>
+                            <h3>Phản hồi siêu tốc</h3>
+                            <p>Tích hợp API Gemini 2.5 Flash tối ưu tốc độ và độ chính xác.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Typing Indicator -->
+            <div class="typing-indicator" id="typingIndicator" style="display: none;">
+                <div class="avatar ai-avatar"><i class="fa-solid fa-robot"></i></div>
+                <div class="dots-wrapper">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                    <span class="typing-label">Gemini đang suy nghĩ...</span>
+                </div>
+            </div>
+
+            <!-- Input Bar -->
+            <div class="chat-input-container">
+                <form id="chatForm" class="chat-form">
+                    <textarea 
+                        id="userPrompt" 
+                        placeholder="Nhập câu hỏi của bạn cho AI (Nhấn Shift + Enter để xuống dòng)..." 
+                        rows="1"
+                        required></textarea>
+                    
+                    <button type="submit" id="sendBtn" class="btn-send" title="Gửi tin nhắn">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </form>
+                <div class="input-footer">
+                    <span><i class="fa-solid fa-shield-halved"></i> Google Gemini API Integration</span>
+                    <span>Django Web Application Project</span>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- API Key Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-key"></i> Cài đặt Google Gemini API Key</h3>
+                <button class="btn-icon" id="closeModalBtn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <p>Bạn có thể nhập API Key cá nhân của Google Gemini để sử dụng trực tiếp trên ứng dụng web.</p>
+                <div class="form-group">
+                    <label for="apiKeyInput">Gemini API Key:</label>
+                    <div class="input-with-icon">
+                        <input type="password" id="apiKeyInput" placeholder="AIzaSy...">
+                        <button type="button" class="btn-toggle-key" id="toggleKeyVis"><i class="fa-solid fa-eye"></i></button>
+                    </div>
+                    <small class="help-text">Chưa có API Key? <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Lấy API Key miễn phí tại Google AI Studio <i class="fa-solid fa-arrow-up-right-from-square"></i></a></small>
+                </div>
+                <div class="alert alert-info">
+                    <i class="fa-solid fa-circle-info"></i>
+                    <span>Nếu không nhập ở đây, ứng dụng sẽ tự động dùng API Key cấu hình sẵn trong file <code>.env</code> ở server.</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" id="clearKeyBtn">Clear Key</button>
+                <button type="button" class="btn-primary" id="saveKeyBtn">Lưu Cài Đặt</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Custom JS -->
+    <script src="{% static 'js/main.js' %}"></script>
+</body>
+</html>
