@@ -13,12 +13,22 @@ SYSTEM_INSTRUCTION = (
     "Luôn trả lời bằng tiếng Việt tự nhiên, chuẩn xác và sử dụng định dạng Markdown (kèm các khối code có syntax highlighting) khi trình bày bài viết hoặc mã nguồn."
 )
 
+def sanitize_proxy_env():
+    """Remove or fix unsupported socks4 system proxy environment variables that crash httpx/requests."""
+    proxy_keys = ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"]
+    for key in proxy_keys:
+        val = os.environ.get(key, "")
+        if "socks4" in val.lower():
+            os.environ.pop(key, None)
+
 def send_message_to_gemini(prompt, history=None, api_key=None, model_name="gemini-1.5-flash"):
     """
     Sends prompt to Google Gemini API using google-genai or google.generativeai.
     Features model fallback candidates and System Prompt instruction.
     """
+    sanitize_proxy_env()
     effective_api_key = api_key or os.getenv("GEMINI_API_KEY")
+
     
     if not effective_api_key:
         return {
