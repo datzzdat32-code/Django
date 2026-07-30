@@ -3,12 +3,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatForm = document.getElementById('chatForm');
     const userPrompt = document.getElementById('userPrompt');
     const sendBtn = document.getElementById('sendBtn');
+    const micBtn = document.getElementById('micBtn');
+    const clearInputBtn = document.getElementById('clearInputBtn');
     const chatFeed = document.getElementById('chatFeed');
     const welcomeContainer = document.getElementById('welcomeContainer');
     const typingIndicator = document.getElementById('typingIndicator');
     const clearChatBtn = document.getElementById('clearChatBtn');
     const newChatBtn = document.getElementById('newChatBtn');
     const modelSelect = document.getElementById('modelSelect');
+    const turnCounter = document.getElementById('turnCounter');
 
     // Sidebar & Modal Elements
     const sidebar = document.getElementById('sidebar');
@@ -24,6 +27,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const keyStatusDot = document.getElementById('keyStatusDot');
     const toastContainer = document.getElementById('toastContainer');
 
+    let totalTurns = 0;
+
     // Configure Marked.js renderer for custom code blocks
     const renderer = new marked.Renderer();
     renderer.code = function({ text, lang }) {
@@ -32,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return `
             <div class="code-block-wrapper">
                 <div class="code-header">
-                    <span>${validLang.toUpperCase()}</span>
+                    <span><i class="fa-solid fa-code"></i> ${validLang.toUpperCase()}</span>
                     <button class="btn-copy-code" onclick="copyCodeSnippet(this)">
                         <i class="fa-regular fa-copy"></i> Sao chép
                     </button>
@@ -48,6 +53,59 @@ document.addEventListener('DOMContentLoaded', () => {
     if (savedApiKey) {
         apiKeyInput.value = savedApiKey;
         keyStatusDot.classList.add('active');
+    }
+
+    // Voice Input (Web Speech Recognition API)
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    let isListening = false;
+
+    if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.lang = 'vi-VN';
+        recognition.interimResults = false;
+
+        recognition.onstart = () => {
+            isListening = true;
+            micBtn.classList.add('mic-active');
+            micBtn.innerHTML = '<i class="fa-solid fa-waveform"></i>';
+            showToast('Đang lắng nghe giọng nói tiếng Việt...', 'info');
+        };
+
+        recognition.onresult = (e) => {
+            const transcript = e.results[0][0].transcript;
+            userPrompt.value += (userPrompt.value ? ' ' : '') + transcript;
+            userPrompt.dispatchEvent(new Event('input'));
+            showToast('Đã nhận diện giọng nói!', 'success');
+        };
+
+        recognition.onerror = (e) => {
+            showToast('Không nhận diện được giọng nói. Thử lại!', 'error');
+            stopListening();
+        };
+
+        recognition.onend = () => {
+            stopListening();
+        };
+
+        micBtn.addEventListener('click', () => {
+            if (isListening) {
+                recognition.stop();
+            } else {
+                recognition.start();
+            }
+        });
+    } else {
+        micBtn.addEventListener('click', () => {
+            showToast('Trình duyệt của bạn không hỗ trợ Nhập liệu giọng nói.', 'info');
+        });
+    }
+
+    function stopListening() {
+        isListening = false;
+        micBtn.classList.remove('mic-active');
+        micBtn.innerHTML = '<i class="fa-solid fa-microphone"></i>';
     }
 
     // Toggle Mobile Sidebar
@@ -70,7 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Save API Key
     saveKeyBtn.addEventListener('click', () => {
-        const val = apiKeyInput.value.strip ? apiKeyInput.value.strip() : apiKeyInput.value.trim();
+        const val = apiKeyInput.value.trim();
         if (val) {
             localStorage.setItem('gemini_api_key', val);
             savedApiKey = val;
@@ -94,11 +152,20 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('Đã xoá API Key', 'info');
     });
 
-    // Auto-resize Textarea
+    // Auto-resize Textarea & Clear Input Button
     userPrompt.addEventListener('input', () => {
         userPrompt.style.height = 'auto';
         userPrompt.style.height = Math.min(userPrompt.scrollHeight, 150) + 'px';
+        clearInputBtn.style.display = userPrompt.value.trim() ? 'block' : 'none';
     });
+
+    if (clearInputBtn) {
+        clearInputBtn.addEventListener('click', () => {
+            userPrompt.value = '';
+            userPrompt.style.height = 'auto';
+            clearInputBtn.style.display = 'none';
+        });
+    }
 
     // Shift + Enter for newline, Enter to send
     userPrompt.addEventListener('keydown', (e) => {
@@ -114,8 +181,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const promptText = chip.getAttribute('data-prompt');
             if (promptText) {
                 userPrompt.value = promptText;
-                userPrompt.style.height = 'auto';
-                userPrompt.style.height = Math.min(userPrompt.scrollHeight, 150) + 'px';
+                userPrompt.dispatchEvent(new Event('input'));
                 if (window.innerWidth <= 768) sidebar.classList.remove('active');
                 chatForm.dispatchEvent(new Event('submit'));
             }
@@ -135,6 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
         appendMessage('user', text);
         userPrompt.value = '';
         userPrompt.style.height = 'auto';
+        if (clearInputBtn) clearInputBtn.style.display = 'none';
         sendBtn.disabled = true;
 
         // Show typing indicator
@@ -162,6 +229,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (data.success) {
                 appendMessage('ai', data.reply);
+                totalTurns++;
+                if (turnCounter) turnCounter.textContent = `${totalTurns} lượt chat`;
             } else {
                 appendErrorMessage(data.error || 'Có lỗi xảy ra khi xử lý phản hồi từ AI');
                 showToast(data.error || 'Lỗi API', 'error');
@@ -183,6 +252,8 @@ document.addEventListener('DOMContentLoaded', () => {
             chatFeed.innerHTML = '';
             chatFeed.appendChild(welcomeContainer);
             welcomeContainer.style.display = 'block';
+            totalTurns = 0;
+            if (turnCounter) turnCounter.textContent = `0 lượt chat`;
             showToast('Đã làm mới cuộc trò chuyện', 'success');
         } catch (e) {
             showToast('Lỗi khi xoá chat', 'error');
@@ -202,15 +273,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const avatar = document.createElement('div');
         avatar.className = 'avatar';
-        avatar.innerHTML = sender === 'user' ? '<i class="fa-solid fa-user"></i>' : '<i class="fa-solid fa-robot"></i>';
+        avatar.innerHTML = sender === 'user' ? '<i class="fa-solid fa-user-astronaut"></i>' : '<i class="fa-solid fa-robot"></i>';
 
         const content = document.createElement('div');
         content.className = 'message-content';
 
+        const now = new Date();
+        const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
         if (sender === 'ai') {
-            content.innerHTML = marked.parse(text);
+            const markdownBody = marked.parse(text);
+            content.innerHTML = `
+                <div class="message-body">${markdownBody}</div>
+                <div class="message-actions">
+                    <button class="action-btn" onclick="copyMessageText(this)" title="Sao chép nội dung">
+                        <i class="fa-regular fa-copy"></i> Copy
+                    </button>
+                    <button class="action-btn" onclick="speakMessageText(this)" title="Đọc phản hồi bằng giọng nói">
+                        <i class="fa-solid fa-volume-high"></i> Đọc
+                    </button>
+                    <span class="message-time"><i class="fa-regular fa-clock"></i> ${timeStr}</span>
+                </div>
+            `;
         } else {
-            content.textContent = text;
+            content.innerHTML = `
+                <div class="message-body">${escapeHtml(text)}</div>
+                <div class="message-actions" style="justify-content: flex-end;">
+                    <span class="message-time"><i class="fa-regular fa-clock"></i> ${timeStr}</span>
+                </div>
+            `;
         }
 
         messageDiv.appendChild(avatar);
@@ -230,11 +321,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const content = document.createElement('div');
         content.className = 'message-content';
         content.style.borderColor = 'rgba(239, 68, 68, 0.4)';
-        content.style.background = 'rgba(239, 68, 68, 0.1)';
+        content.style.background = 'rgba(239, 68, 68, 0.12)';
         
-        let formattedMsg = `<strong style="color: #f87171;"><i class="fa-solid fa-circle-xmark"></i> Lỗi:</strong> ${errorMsg}`;
+        let formattedMsg = `<strong style="color: #f87171;"><i class="fa-solid fa-circle-xmark"></i> Lỗi xử lý:</strong> ${errorMsg}`;
         if (errorMsg.includes('API Key')) {
-            formattedMsg += `<br><button type="button" class="btn-primary" style="margin-top: 10px; padding: 6px 14px; font-size: 12px;" onclick="document.getElementById('settingsModal').classList.add('active')"><i class="fa-solid fa-key"></i> Mở Bảng Nhập API Key Ngay</button>`;
+            formattedMsg += `<br><button type="button" class="btn-primary" style="margin-top: 10px; padding: 6px 14px; font-size: 12px;" onclick="document.getElementById('settingsModal').classList.add('active')"><i class="fa-solid fa-key"></i> Mở Bảng Cấu Hình API Key</button>`;
         }
         
         content.innerHTML = formattedMsg;
@@ -247,6 +338,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function scrollToBottom() {
         chatFeed.scrollTop = chatFeed.scrollHeight;
+    }
+
+    function escapeHtml(string) {
+        return String(string).replace(/[&<>"']/g, function (s) {
+            return {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[s];
+        });
     }
 
     // Toast Notification helper
@@ -277,3 +380,40 @@ function copyCodeSnippet(btn) {
         alert('Không thể sao chép code: ' + err);
     });
 }
+
+// Copy Full Message Text Handler
+function copyMessageText(btn) {
+    const body = btn.closest('.message-content').querySelector('.message-body');
+    const text = body.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        const original = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-check" style="color: #10b981;"></i> Đã chép!';
+        setTimeout(() => btn.innerHTML = original, 2000);
+    });
+}
+
+// Text to Speech Handler
+function speakMessageText(btn) {
+    const body = btn.closest('.message-content').querySelector('.message-body');
+    const text = body.textContent;
+
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel(); // Stop any active speech
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'vi-VN';
+        utterance.rate = 1.0;
+        
+        btn.innerHTML = '<i class="fa-solid fa-volume-high" style="color: #10b981;"></i> Đang đọc...';
+        utterance.onend = () => {
+            btn.innerHTML = '<i class="fa-solid fa-volume-high"></i> Đọc';
+        };
+        utterance.onerror = () => {
+            btn.innerHTML = '<i class="fa-solid fa-volume-high"></i> Đọc';
+        };
+        
+        window.speechSynthesis.speak(utterance);
+    } else {
+        alert('Trình duyệt không hỗ trợ Đọc bằng giọng nói.');
+    }
+}
+
